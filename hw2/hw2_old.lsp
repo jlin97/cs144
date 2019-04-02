@@ -1,0 +1,31 @@
+
+(defun dfs (tree)
+	(cond ((null tree) tree)
+		  ((atom tree) (list tree))
+		  (t (append (dfs (cdr tree)) (dfs (car tree))))))
+
+(defun dfid (tree l)
+	(cond ((or (= l 0) (null tree)) NIL)
+		  (t (append (dfid tree (- l 1)) (lds tree l)))))
+
+(defun lds (tree l)
+	(print tree)
+	(print l)
+	(cond ((= l 0) NIL)
+		  ((null tree) NIL)
+		  ((atom (car tree)) (append (lds (cdr tree) l) (list (car tree))))
+		  ((and (atom (cadr tree)) (not (null (cadr tree)))) 
+		    	(append (lds (cddr tree) l) (list (cadr tree)) (lds (car tree) (- l 1))))
+		  (t (append (lds (cdr tree) l) (lds (car tree) (- l 1))))))
+
+(defun DFID_helper (tree depth)
+	(COND ((< depth 0) NIL)
+          ((NULL tree) NIL)
+          ((ATOM tree) (CONS tree NIL))
+          (t (APPEND (DFID_helper (first tree) (- depth 1)) (DFID_helper (rest tree) depth)))))
+
+(defun tst (tree l)
+	(cond ((null tree) NIL)
+		  ((atom tree) (list tree))
+		  ((= l 0) NIL)
+		  (t (append (tst (cdr tree) l) (tst (car tree) (- l 1))))))

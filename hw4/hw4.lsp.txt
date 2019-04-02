@@ -1,0 +1,150 @@
+
+; 
+; Loads both hw4 and cnf parser
+;
+(defun reload-all ()
+  (load "hw4.lsp")
+  (load "parse_cnf.lsp")
+  )
+
+;
+; Helper functions for sat-helper
+;
+
+;
+; has-empty-clause (clauses)
+; Helper function for sat-helper
+; Returns whether clauses contains NIL
+;
+(defun has-empty-clause (clauses)
+  (cond ((null clauses) NIL)
+        ((null (car clauses)) t)
+        (t (has-empty-clause (cdr clauses))))
+  )
+
+;
+; get-unit-clause-literal (clauses)
+; Helper function for sat-helper
+; Returns the containing literal if a unit clause exists or NIL otherwise
+;
+(defun get-unit-clause-literal (clauses)
+  (cond ((null clauses) NIL)
+        ((= 1 (length (car clauses))) (caar clauses))
+        (t (get-unit-clause-literal (cdr clauses))))
+  )
+
+;
+; remove-clauses (literal clauses result)
+; Helper function for sat-helper
+; Returns the subset of clauses that do not contain the literal
+;
+(defun remove-clauses (literal clauses result)
+  (cond ((null clauses) result)
+        ; If the literal is not inside the clause, add the clause to result
+        ((null (member literal (car clauses))) (remove-clauses literal (cdr clauses) (cons (car clauses) result)))
+        (t (remove-clauses literal (cdr clauses) result)))
+  )
+
+;
+; remove-literal-clause (literal clause result)
+; Helper function for remove-literal
+; Returns a clause without the literal
+;
+(defun remove-literal-clause (literal clause result)
+  (cond ((null clause) result)
+        ((/= literal (car clause)) (remove-literal-clause literal (cdr clause) (cons (car clause) result)))
+        (t (remove-literal-clause literal (cdr clause) result)))
+  )
+
+;
+; restrict-clauses (literal clause result)
+; Helper function for sat-helper
+; Returns clauses that have been restricted to not contain the literal
+;
+(defun restrict-clauses (literal clauses result)
+  (cond ((null clauses) result)
+        (t (restrict-clauses literal (cdr clauses) (cons (remove-literal-clause literal (car clauses) (list)) result))))
+  )
+
+;
+; finalize-literal (literal clauses)
+; Helper function for sat-helper
+; Returns clauses after finalizing a literal
+; Finalizing is defined to be removing all clauses containing the literal (the assignment
+; satisfies all of them) and forward checking / restricting all clauses of the negation of the assignment 
+; (if A is finalized to be true, A can no longer be take on the value false)
+;
+(defun finalize-literal (literal clauses)
+  (restrict-clauses (- literal) (remove-clauses literal clauses (list)) (list)))
+
+;
+; add-free-literals (n result)
+; Helper function for sat-helper
+; Returns a valid truth assignment of all literals given finalized literals and a literal count total
+;
+(defun add-free-literals (n result)
+  (cond ((= n 0) result)
+        ; If literal or -literal is not a member of result, add literal to result
+        ((and (null (member n result)) (null (member (- n) result))) (add-free-literals (- n 1) (cons n result)))
+        (t (add-free-literals (- n 1) result)))
+  )
+
+;
+; sat-helper (n clauses result)
+; Helper function for sat?
+; Returns a truth assignment given the number of clauses and the clauses
+;
+(defun sat-helper (n clauses result)
+  ; If the entire clauses set is empty, then sufficient values have been assigned
+  ; to a subset of literals s.t. the remaining literals are free to be assigned any value
+  ; without changing the validity of the assignment
+  (cond ((null clauses) (add-free-literals n result))
+        ; If a particular clause is empty, it means the clause has been restricted
+        ; enough s.t. there is no possible valid truth assignment for the clause
+        ; with the selected finalized literals 
+        ((has-empty-clause clauses) NIL)
+        ; Unit-propagation: If there is a unit-clause, finalize the containing literal
+        ; since it is the most constrained variable
+        ((not (null (get-unit-clause-literal clauses)))
+          (let* ((unit-literal (get-unit-clause-literal clauses)))
+            (sat-helper n (finalize-literal unit-literal clauses) (cons unit-literal result))
+          );end let
+        )
+        ; Strategy for literal to finalize next: caar of clauses
+        ; Finalize the containing literal in the head of the first clause to be true
+        ; If there is no valid truth assignment with the given value, finalize it as false
+        (t (let* ((chosen-literal (caar clauses)))
+            (or (sat-helper n (finalize-literal chosen-literal clauses) (cons chosen-literal result)) 
+                (sat-helper n (finalize-literal (- chosen-literal) clauses) (cons (- chosen-literal) result)))
+           );end let
+        ))
+  )
+
+;
+; sat? (n clauses)
+; Top-level function to solve a given SAT problem
+;
+(defun sat? (n clauses)
+  (sat-helper n clauses (list)))
+
+
+;
+; Helper functions to check the correctness of a truth assignment
+;
+
+(defun validate-clause-satisifability (literals clause)
+  (cond ((null clause) NIL)
+        (t (or (not (null (member (car clause) literals))) 
+               (validate-clause-satisifability literals (cdr clause)))))
+  )
+
+(defun validate-clauses-satisifability (literals clauses)
+  (cond ((null literals) "UNSAT")
+        ((null clauses) t)
+        ((not (validate-clause-satisifability literals (car clauses))) NIL)
+        (t (validate-clauses-satisifability literals (cdr clauses))))
+  )
+
+(defun sat-solution-checker (filename)
+  (validate-clauses-satisifability (solve-cnf filename) (cadr (parse-cnf filename))))
+
